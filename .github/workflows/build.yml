@@ -1,0 +1,51 @@
+name: Build IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Create Secrets.xcconfig
+      run: |
+        if [ -f Secrets.xcconfig.example ]; then
+          cp Secrets.xcconfig.example Secrets.xcconfig
+        else
+          touch Secrets.xcconfig
+        fi
+
+    - name: Select Xcode
+      run: sudo xcode-select -s /Applications/Xcode.app
+
+    - name: Build Archive
+      run: |
+        xcodebuild archive \
+          -project argus.xcodeproj \
+          -scheme argus \
+          -configuration Release \
+          -sdk iphoneos \
+          -archivePath $RUNNER_TEMP/argus.xcarchive \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_ALLOWED=NO \
+          -destination "generic/platform=iOS"
+
+    - name: Create IPA
+      run: |
+        mkdir -p $RUNNER_TEMP/Payload
+        cp -r $RUNNER_TEMP/argus.xcarchive/Products/Applications/*.app \
+              $RUNNER_TEMP/Payload/
+        cd $RUNNER_TEMP
+        zip -r argus.ipa Payload/
+
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: argus-ipa
+        path: ${{ runner.temp }}/argus.ipa
+        retention-days: 3
